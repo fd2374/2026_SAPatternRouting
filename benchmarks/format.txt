@@ -1,0 +1,51 @@
+Input format
+
+(1) The iopad file
+
+In the iopad file, every access pad from the top layer (chips) should be mentioned, and it should be written chip(die) by chip(die).
+For example, a benchmark with 2 chips(dies) and each chip(die) with two io pads may be:
+
+[DIE] <die_name_0>
+<io_name_0_0> 3419.75 4193 3439.75 4213
+<io_name_0_1> 3489.75 4193 3509.75 4213
+[DIE] <die_name_1>
+<io_name_1_0> 953.75 4667 973.75 4687
+<io_name_1_1> 1093.75 4667 1113.75 4687
+
+The four numbers after an io pad's name indicate its bounding box (left x, bottom y, right x, top y)
+
+(2) The bump file
+
+In the bump file just write the bounding box (left x, bottom y, right x, top y) for each bump pad
+For example:
+
+3779 4535 3781 4537
+4031 251 4033 253
+4031 503 4033 505
+4031 755 4033 757
+4031 1007 4033 1009
+4031 1259 4033 1261
+4031 1511 4033 1513
+4031 1763 4033 1765
+
+(3) The net file
+
+In the net file, each net is a 2-pin net and should be written in the format:
+For example, a benchmark with 2 chip-to-chip(PA) nets may be:
+
+<net_name_1> <io_name_n1_0> <io_name_n1_1>
+<net_name_2> <io_name_n2_0> <io_name_n2_1>
+
+Note that the io pads which is not mentioned in the net file would be chip-to-board net.
+
+(4) The gp file
+
+In the gp file, set the design rule parameters (WIREWIDTH would be treated as spacing; PITCH is no use now):
+For example:
+
+[PACKAGEWIDTH] 5000
+[PACKAGEHEIGHT] 5000
+[LAYERNUMBER] 3
+[WIREWIDTH] 4
+[VIAWIDTH] 20
+[PITCH] 30

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Numba cache
+*.nbc
+*.nbi
+
+# Generated results
+results/
+
+# Profiling
+*.prof
+
+# Archives
+*.zip
+
+# Reference materials (not part of the router)
+routing/
+power plane/
+
+# Benchmark generated images
+benchmarks/**/*_visualization.png
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent transcripts
+agent-transcripts/
+mcps/
