@@ -20,6 +20,7 @@ from .solver import solve_sa, generate_all_candidates
 from .util import compute_max_coupling_distance
 from .output import write_solution
 from .visualizer import visualize_solution
+from .postprocess import greedy_remove, astar_reroute
 
 
 def _print_comparison(baseline, solution, t_base, t_solve):
@@ -64,8 +65,6 @@ def main():
                         help="Skip visualization")
     parser.add_argument("--no-show", action="store_true",
                         help="Don't display plots (only save)")
-    parser.add_argument("--baseline", action="store_true",
-                        help="Also run crosstalk-unaware baseline for comparison")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility (default: 42)")
     args = parser.parse_args()
@@ -108,21 +107,6 @@ def main():
 
     max_cd = compute_max_coupling_distance(package.params)
 
-    # Baseline: crosstalk-unaware (beta=0)
-    baseline = None
-    t_base = 0.0
-    if args.baseline:
-        print(f"\n{'='*60}")
-        print(f"[Baseline] Running crosstalk-UNAWARE routing (beta=0)...")
-        t0 = time.time()
-        baseline = solve_sa(
-            package, candidates,
-            args.alpha, 0.0, args.gamma, args.max_iter,
-            max_coupling_distance=max_cd, verbose=True,
-        )
-        t_base = time.time() - t0
-        print(f"  Baseline time: {t_base:.2f}s")
-
     # Main: crosstalk-aware
     print(f"\n{'='*60}")
     print(f"[Main] Running crosstalk-AWARE routing (beta={args.beta})...")
@@ -135,10 +119,25 @@ def main():
     )
     t_solve = time.time() - t0
 
-    if baseline is not None:
-        _print_comparison(baseline, solution, t_base, t_solve)
+    # Post-processing: greedy removal + A* rerouting
+    if solution.num_crossings + solution.num_drc_violations > 0:
+        print(f"\n{'='*60}")
+        print("[Post] Greedy removal of violating nets...")
+        t_post = time.time()
+        _, removed_nets = greedy_remove(solution, verbose=True)
+        if removed_nets:
+            print(f"\n[Post] A* rerouting {len(removed_nets)} nets...")
+            solution = astar_reroute(solution, removed_nets, verbose=True)
+            print(f"  [Post] After reroute: Xings={solution.num_crossings} "
+                  f"DRC={solution.num_drc_violations}")
+        t_post = time.time() - t_post
+        print(f"  [Post] Post-processing time: {t_post:.2f}s")
+    else:
+        removed_nets = []
+        print("\n[Post] No violations, skipping post-processing.")
+        t_post = 0.0
 
-    print(f"\n[Main] Total solve time: {t_base + t_solve:.2f}s")
+    print(f"\n[Main] Total solve time: {t_solve + t_post:.2f}s")
 
     # Write output
     write_solution(solution, output_dir)

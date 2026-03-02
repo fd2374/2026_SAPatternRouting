@@ -17,8 +17,7 @@ results/
 *.zip
 
 # Reference materials (not part of the router)
-routing/
-power plane/
+references/
 
 # Benchmark generated images
 benchmarks/**/*_visualization.png

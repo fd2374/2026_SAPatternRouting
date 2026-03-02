@@ -218,18 +218,10 @@ class Package:
 class RoutingSolution:
     """Complete routing solution for all nets."""
     package: Package
-    selected: List[int]               # selected[i] = index of chosen pattern for net i
-    candidates: List[List[RoutePattern]]  # candidates[i] = list of patterns for net i
+    routes: List[RoutePattern]
     total_wirelength: float = 0.0
     total_crosstalk: float = 0.0
     max_crosstalk: float = 0.0
     num_vias: int = 0
     num_crossings: int = 0
     num_drc_violations: int = 0
-
-    def get_route(self, net_idx: int) -> RoutePattern:
-        return self.candidates[net_idx][self.selected[net_idx]]
-
-    @property
-    def all_routes(self) -> List[RoutePattern]:
-        return [self.get_route(i) for i in range(len(self.selected))]

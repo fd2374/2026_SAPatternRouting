@@ -30,7 +30,7 @@ def _write_routes(solution: RoutingSolution, filepath: str):
         f.write(f"#         [VIA] x y from_layer to_layer\n\n")
 
         for i, net in enumerate(solution.package.nets):
-            route = solution.get_route(i)
+            route = solution.routes[i]
             f.write(f"[NET] {net.name} {net.pad1_name} {net.pad2_name}\n")
 
             for seg in route.segments:
@@ -68,7 +68,7 @@ def _write_summary(solution: RoutingSolution, filepath: str):
         # Per-layer statistics
         layer_wl = {}
         layer_segs = {}
-        for route in solution.all_routes:
+        for route in solution.routes:
             for seg in route.segments:
                 layer_wl[seg.layer] = layer_wl.get(seg.layer, 0) + seg.length
                 layer_segs[seg.layer] = layer_segs.get(seg.layer, 0) + 1
@@ -83,7 +83,7 @@ def _write_crosstalk_detail(solution: RoutingSolution, filepath: str):
     """Write detailed pairwise crosstalk information."""
     params = solution.package.params
     nets = solution.package.nets
-    routes = solution.all_routes
+    routes = solution.routes
 
     with open(filepath, "w") as f:
         f.write("# Pairwise crosstalk between nets\n")

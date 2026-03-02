@@ -48,7 +48,7 @@ def _run_one_seed(benchmark_dir, alpha, beta, gamma, max_iter, seed,
         "crossings": sol.num_crossings,
         "drc": sol.num_drc_violations,
         "time": elapsed,
-        "selected": sol.selected,
+        "n_routes": len(sol.routes),
     }
 
 

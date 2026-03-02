@@ -72,7 +72,7 @@ def _find_drc_locations(solution: RoutingSolution):
       wire_via_locs: [(via_x, via_y, layer), ...] for wire-via overlaps
       via_via_locs:  [(mid_x, mid_y, layer), ...] for via-via overlaps
     """
-    routes = solution.all_routes
+    routes = solution.routes
     nets = solution.package.nets
     params = solution.package.params
     n = len(routes)
@@ -231,7 +231,7 @@ def _draw_pad_vias(ax, solution, params, layer_filter=None, zorder=5):
     """
     vw = params.via_width
     half = vw / 2.0
-    routes = solution.all_routes
+    routes = solution.routes
     nets = solution.package.nets
 
     for net_idx, route in enumerate(routes):
@@ -275,7 +275,7 @@ def visualize_solution(
     """Generate all visualization plots for a routing solution."""
     os.makedirs(output_dir, exist_ok=True)
 
-    crossing_pts = _find_crossing_points(solution.all_routes)
+    crossing_pts = _find_crossing_points(solution.routes)
     wv_locs, vv_locs = _find_drc_locations(solution)
 
     _plot_overview(solution, output_dir, show, crossing_pts, wv_locs, vv_locs)
@@ -288,7 +288,7 @@ def _plot_overview(solution, output_dir, show,
     """Overview plot showing all routes with violation markers."""
     pkg = solution.package
     params = pkg.params
-    routes = solution.all_routes
+    routes = solution.routes
 
     fig, ax = plt.subplots(1, 1, figsize=(14, 14))
     ax.set_title(
@@ -380,7 +380,7 @@ def _plot_per_layer(solution, output_dir, show,
     """One subplot per layer with violation markers."""
     pkg = solution.package
     params = pkg.params
-    routes = solution.all_routes
+    routes = solution.routes
     n_layers = params.num_layers
 
     cols = min(n_layers, 3)
@@ -471,7 +471,7 @@ def _plot_crosstalk_heatmap(solution, output_dir, show):
 
     params = solution.package.params
     nets = solution.package.nets
-    routes = solution.all_routes
+    routes = solution.routes
     n = len(nets)
 
     matrix = np.zeros((n, n))
@@ -575,6 +575,12 @@ class SALivePlot:
 
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
+
+    def mark_reheat(self, iteration):
+        """Draw a vertical dashed line at a reheat event."""
+        for ax in self.axes:
+            ax.axvline(x=iteration, color="#E63946", ls="--",
+                       lw=0.6, alpha=0.5)
 
     def finish(self):
         plt.ioff()
