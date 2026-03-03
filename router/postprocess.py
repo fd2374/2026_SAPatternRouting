@@ -12,6 +12,8 @@ Step 2 – A* rerouting:
 
 import math
 import heapq
+import os
+import random
 import numpy as np
 from typing import List, Tuple, Dict, Optional, Set
 
@@ -24,7 +26,7 @@ from .util import (
     total_crosstalk, max_pair_crosstalk,
 )
 
-GRID_STEP = 1.0
+GRID_STEP = 10.0
 _SQRT2 = math.sqrt(2.0)
 
 
@@ -81,7 +83,9 @@ def greedy_remove(
         if total_v == 0:
             break
 
-        worst_local = max(range(len(alive_list)), key=lambda k: counts_alive[k])
+        max_v = max(counts_alive)
+        tied = [k for k in range(len(alive_list)) if counts_alive[k] == max_v]
+        worst_local = random.choice(tied)
         worst_global = alive_list[worst_local]
 
         iteration += 1
@@ -193,6 +197,16 @@ def _build_obstacle_grid(routes, nets, params, grid_step, exclude):
             _mark_via(blocked, vob.center.x, vob.center.y,
                       via_clr, list(vob.layers), grid_step, nx, ny)
 
+    # Reserve pad positions of excluded nets on all layers so other
+    # rerouted nets don't route over pads they don't own.
+    all_layers = list(range(nl))
+    for idx in exclude:
+        net = nets[idx]
+        _mark_via(blocked, net.pt1.x, net.pt1.y,
+                  via_clr, all_layers, grid_step, nx, ny)
+        _mark_via(blocked, net.pt2.x, net.pt2.y,
+                  via_clr, all_layers, grid_step, nx, ny)
+
     return blocked, nx, ny
 
 
@@ -209,11 +223,14 @@ def _add_route_to_grid(blocked, route, net, params, grid_step, nx, ny):
                   via_clr, list(vob.layers), grid_step, nx, ny)
 
 
-def _astar(blocked, sx, sy, ex, ey, nx, ny, num_layers, grid_step):
+def _astar(blocked, sx, sy, ex, ey, nx, ny, num_layers, grid_step,
+           via_radius_g=0):
     """
     A* on a multi-layer grid with 135-degree moves.
 
     Start/goal: all layers at (sx,sy) / (ex,ey).
+    via_radius_g: via half-width in grid cells; layer transitions check
+                  the full (2r+1)x(2r+1) footprint on both layers.
     Returns list of (gx, gy, layer) or None.
     """
     VIA_COST = grid_step * 2.0
@@ -223,11 +240,26 @@ def _astar(blocked, sx, sy, ex, ey, nx, ny, num_layers, grid_step):
         (1, 1, _SQRT2), (-1, -1, _SQRT2),
         (1, -1, _SQRT2), (-1, 1, _SQRT2),
     ]
+    vr = via_radius_g
 
     def heuristic(x, y):
         dx = abs(x - ex)
         dy = abs(y - ey)
         return (max(dx, dy) + (_SQRT2 - 1.0) * min(dx, dy)) * grid_step
+
+    def _via_footprint_clear(layer, gx, gy):
+        """Check that the full via footprint is unblocked on *layer*."""
+        for dy in range(-vr, vr + 1):
+            yy = gy + dy
+            if yy < 0 or yy >= ny:
+                return False
+            for dx in range(-vr, vr + 1):
+                xx = gx + dx
+                if xx < 0 or xx >= nx:
+                    return False
+                if blocked[layer, yy, xx]:
+                    return False
+        return True
 
     # Push all layers at start
     open_set = []
@@ -271,18 +303,20 @@ def _astar(blocked, sx, sy, ex, ey, nx, ny, num_layers, grid_step):
                                        (new_g + heuristic(nx2, ny2),
                                         new_g, nx2, ny2, cl))
 
-        # Layer transitions
+        # Layer transitions — check full via footprint on both layers
         for dl in (-1, 1):
-            nl = cl + dl
-            if 0 <= nl < num_layers and not blocked[nl, cy, cx]:
-                new_g = g + VIA_COST
-                nb = (cx, cy, nl)
-                if new_g < g_score.get(nb, float('inf')):
-                    g_score[nb] = new_g
-                    came_from[nb] = (cx, cy, cl)
-                    heapq.heappush(open_set,
-                                   (new_g + heuristic(cx, cy),
-                                    new_g, cx, cy, nl))
+            nl2 = cl + dl
+            if 0 <= nl2 < num_layers:
+                if (_via_footprint_clear(cl, cx, cy) and
+                        _via_footprint_clear(nl2, cx, cy)):
+                    new_g = g + VIA_COST
+                    nb = (cx, cy, nl2)
+                    if new_g < g_score.get(nb, float('inf')):
+                        g_score[nb] = new_g
+                        came_from[nb] = (cx, cy, cl)
+                        heapq.heappush(open_set,
+                                       (new_g + heuristic(cx, cy),
+                                        new_g, cx, cy, nl2))
 
     return None
 
@@ -370,12 +404,22 @@ def astar_reroute(solution, removed_indices, grid_step=GRID_STEP,
         print(f"  [A*] Building obstacle grid (step={grid_step})...")
     blocked, nx, ny = _build_obstacle_grid(
         all_routes, nets, params, grid_step, exclude)
+
+    via_radius_g = max(0, int(math.ceil(params.via_width / 2.0 / grid_step)))
     if verbose:
-        print(f"  [A*] Grid: {nx}x{ny}x{num_layers}")
+        print(f"  [A*] Grid: {nx}x{ny}x{num_layers}  "
+              f"via_radius={via_radius_g} cells")
+        from .visualizer import save_blocked_grid
+        out_dir = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "results")
+        save_blocked_grid(blocked, params, grid_step, nx, ny, out_dir)
 
     rerouted_routes = list(all_routes)
 
-    for net_idx in removed_indices:
+    order = list(removed_indices)
+    random.shuffle(order)
+
+    for net_idx in order:
         net = nets[net_idx]
         sx = max(0, min(nx - 1, round(net.pt1.x / grid_step)))
         sy = max(0, min(ny - 1, round(net.pt1.y / grid_step)))
@@ -389,7 +433,8 @@ def astar_reroute(solution, removed_indices, grid_step=GRID_STEP,
         blocked[:, ey_g, ex_g] = False
 
         path = _astar(blocked, sx, sy, ex_g, ey_g,
-                       nx, ny, num_layers, grid_step)
+                       nx, ny, num_layers, grid_step,
+                       via_radius_g=via_radius_g)
 
         blocked[:, sy, sx] = s_bak
         blocked[:, ey_g, ex_g] = g_bak

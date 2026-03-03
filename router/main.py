@@ -63,6 +63,8 @@ def main():
                         help="Output directory (default: results/<benchmark_name>)")
     parser.add_argument("--no-viz", action="store_true",
                         help="Skip visualization")
+    parser.add_argument("--show-sa", action="store_true",
+                        help="Show SA process")
     parser.add_argument("--no-show", action="store_true",
                         help="Don't display plots (only save)")
     parser.add_argument("--seed", type=int, default=42,
@@ -115,29 +117,41 @@ def main():
         package, candidates,
         args.alpha, args.beta, args.gamma, args.max_iter,
         max_coupling_distance=max_cd, verbose=True,
-        live_plot=not args.no_viz,
+        live_plot=args.show_sa,
     )
     t_solve = time.time() - t0
 
-    # Post-processing: greedy removal + A* rerouting
-    if solution.num_crossings + solution.num_drc_violations > 0:
+    visualize_solution(solution, "./results/tmp", show=False)
+
+    # Post-processing: greedy removal + A* rerouting (repeat until clean)
+    t_post = time.time()
+    pp_round = 0
+    while solution.num_crossings + solution.num_drc_violations > 0 and pp_round < 10:
+        pp_round += 1
         print(f"\n{'='*60}")
-        print("[Post] Greedy removal of violating nets...")
-        t_post = time.time()
+        print(f"[Post] Round {pp_round}: "
+              f"Xings={solution.num_crossings} DRC={solution.num_drc_violations}")
         _, removed_nets = greedy_remove(solution, verbose=True)
-        if removed_nets:
-            print(f"\n[Post] A* rerouting {len(removed_nets)} nets...")
-            solution = astar_reroute(solution, removed_nets, verbose=True)
-            print(f"  [Post] After reroute: Xings={solution.num_crossings} "
-                  f"DRC={solution.num_drc_violations}")
-        t_post = time.time() - t_post
-        print(f"  [Post] Post-processing time: {t_post:.2f}s")
-    else:
-        removed_nets = []
+        if not removed_nets:
+            break
+        print(f"\n[Post] A* rerouting {len(removed_nets)} nets...")
+        solution = astar_reroute(solution, removed_nets, verbose=True)
+        print(f"  [Post] After reroute: Xings={solution.num_crossings} "
+              f"DRC={solution.num_drc_violations}")
+    t_post = time.time() - t_post
+    if pp_round == 0:
         print("\n[Post] No violations, skipping post-processing.")
-        t_post = 0.0
+    else:
+        print(f"  [Post] {pp_round} round(s), time: {t_post:.2f}s")
 
     print(f"\n[Main] Total solve time: {t_solve + t_post:.2f}s")
+
+    print(f"  [Post] Total wirelength: {solution.total_wirelength:.1f}")
+    print(f"  [Post] Total crosstalk: {solution.total_crosstalk:.2f}")
+    print(f"  [Post] Max pair crosstalk: {solution.max_crosstalk:.2f}")
+    print(f"  [Post] Total vias: {solution.num_vias}")
+    print(f"  [Post] Same-layer crossings: {solution.num_crossings}")
+    print(f"  [Post] DRC violations: {solution.num_drc_violations}")
 
     # Write output
     write_solution(solution, output_dir)

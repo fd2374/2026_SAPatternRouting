@@ -267,6 +267,26 @@ def _draw_pad_vias(ax, solution, params, layer_filter=None, zorder=5):
 # Plot functions
 # ============================================================
 
+def save_blocked_grid(blocked, params, grid_step, nx, ny, out_dir):
+    """Save per-layer blocked grid images."""
+    os.makedirs(out_dir, exist_ok=True)
+    nl = blocked.shape[0]
+    for layer in range(nl):
+        fig, ax = plt.subplots(1, 1,
+            figsize=(10, 10 * params.pkg_height / params.pkg_width))
+        ax.imshow(blocked[layer], origin='lower', cmap='Greys',
+                  extent=[0, (nx - 1) * grid_step, 0, (ny - 1) * grid_step],
+                  aspect='equal', interpolation='nearest')
+        ax.set_title(f"Blocked Grid — Layer {layer}  (step={grid_step})",
+                     fontsize=12, fontweight='bold')
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        p = os.path.join(out_dir, f"blocked_grid_L{layer}.png")
+        fig.savefig(p, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        print(f"  [A*] Saved {p}")
+
+
 def visualize_solution(
     solution: RoutingSolution,
     output_dir: str,
